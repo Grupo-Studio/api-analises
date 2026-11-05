@@ -1092,8 +1092,13 @@ function renderModalBody(job) {
   // verde = está ok, vermelho = pendência.
   //   COM CONTRATO:   Sim = verde, Não = vermelho
   //   COM REGULARIZE: Não = verde, Sim = vermelho
-  const temContrato   = !job.alerta_sem_contrato;
-  const temRegularize = !!job.alerta_regularize;
+  // A fonte de verdade é o próprio resultado (mesmo dado das linhas abaixo).
+  // As colunas alerta_* só entram quando o job não tem resultado nenhum: jobs
+  // antigos não têm essas colunas e `!undefined` daria "tem contrato" por engano.
+  const infoDe = id => job[id] != null || !!resultadoDe(id);
+  const textoDe = id => String(job[id] ?? resultadoDe(id)?.valor ?? '');
+  const temContrato   = infoDe('contrato_existe') ? textoDe('contrato_existe').trim() !== '' : !job.alerta_sem_contrato;
+  const temRegularize = infoDe('regularize') ? /^sim/i.test(textoDe('regularize').trim()) : !!job.alerta_regularize;
   const itensChk = [
     { marcado: temContrato,   desc: 'COM CONTRATO',   classe: temContrato ? 'ok' : 'active' },
     { marcado: temRegularize, desc: 'COM REGULARIZE', classe: temRegularize ? 'active' : 'ok' },
