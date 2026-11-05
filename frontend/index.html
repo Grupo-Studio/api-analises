@@ -536,6 +536,7 @@
     .checklist-item.active { background: var(--red-bg); color: var(--red); font-weight: 600 }
     .checklist-item.clear  { color: var(--fg-3) }
     .checklist-item.ok     { background: var(--green-bg); color: var(--green); font-weight: 600 }
+    .checklist-item .chk-resp { margin-left: auto; font-size: 11px; text-transform: uppercase; letter-spacing: .04em }
 
     /* ── Results grid ──────────────────────────────────────────────────────── */
     .cat-section + .cat-section { margin-top: 18px }
@@ -1087,14 +1088,15 @@ function renderModalBody(job) {
   const resultadoDe = id => (rawObj?.resultados || []).find(r => r.id === id);
 
   // Checklist
-  // Os dois itens são afirmativos: marcado (☑) = a frase é verdadeira.
-  // Contrato: marcado e verde = tem contrato; desmarcado e vermelho = pendência.
-  // Regularize: marcado e vermelho = está dentro do Regularize (alerta).
+  // Cada item responde Sim/Não à frase (☑ = Sim, ☐ = Não). Só duas cores:
+  // verde = está ok, vermelho = pendência.
+  //   COM CONTRATO:   Sim = verde, Não = vermelho
+  //   COM REGULARIZE: Não = verde, Sim = vermelho
   const temContrato   = !job.alerta_sem_contrato;
   const temRegularize = !!job.alerta_regularize;
   const itensChk = [
     { marcado: temContrato,   desc: 'COM CONTRATO',   classe: temContrato ? 'ok' : 'active' },
-    { marcado: temRegularize, desc: 'COM REGULARIZE', classe: temRegularize ? 'active' : 'clear' },
+    { marcado: temRegularize, desc: 'COM REGULARIZE', classe: temRegularize ? 'active' : 'ok' },
   ];
   const temAlerta = !temContrato || temRegularize;
 
@@ -1107,6 +1109,7 @@ function renderModalBody(job) {
         <div class="checklist-item ${classe}">
           <span>${marcado ? '☑' : '☐'}</span>
           <span>${desc}</span>
+          <span class="chk-resp">${marcado ? 'Sim' : 'Não'}</span>
         </div>`).join('')}
     </div>`;
 
