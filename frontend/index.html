@@ -506,6 +506,20 @@
       cursor: pointer;
     }
     .modal-close:hover { background: rgba(255,255,255,.2) }
+    .modal-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0 }
+    .modal-del {
+      background: rgba(248,113,113,.15);
+      border: 1px solid rgba(248,113,113,.45);
+      color: #fecaca;
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .modal-del:hover { background: rgba(248,113,113,.3); color: #fff }
+    .modal-del:disabled { opacity: .5; cursor: not-allowed }
     .modal-body { padding: 20px }
 
     /* ── Checklist ─────────────────────────────────────────────────────────── */
@@ -792,7 +806,10 @@
         <div class="modal-title" id="modalTitle">—</div>
         <div class="modal-meta" id="modalMeta">—</div>
       </div>
-      <button class="modal-close" onclick="fecharModal()">✕</button>
+      <div class="modal-actions">
+        <button class="modal-del" id="modalDel" onclick="excluirJobAberto()" hidden>🗑 Excluir</button>
+        <button class="modal-close" onclick="fecharModal()">✕</button>
+      </div>
     </div>
     <div class="modal-body" id="modalBody">
       <p style="color:var(--fg-3);font-size:13px">Carregando…</p>
@@ -1036,7 +1053,11 @@ async function refreshQueue() {
 (async function pollQueue() { await refreshQueue(); setTimeout(pollQueue, 2500); })();
 
 // ── Modal de detalhes ───────────────────────────────────────────────────────
+let jobAberto = null;   // job exibido no modal (usado pelo botão Excluir)
+
 async function abrirJob(id) {
+  jobAberto = null;
+  document.getElementById('modalDel').hidden = true;
   const overlay = document.getElementById('modalOverlay');
   const body    = document.getElementById('modalBody');
   const title   = document.getElementById('modalTitle');
@@ -1059,6 +1080,8 @@ async function abrirJob(id) {
     meta.textContent = `Analisado em ${dt} · ${job.pasta_raiz}`;
 
     body.innerHTML = renderModalBody(job);
+    jobAberto = job;
+    document.getElementById('modalDel').hidden = false;
 
     // Toggle do JSON de cada documento (ex.: Regularize)
     body.querySelectorAll('.doc-json-toggle').forEach(tog => {
@@ -1214,6 +1237,27 @@ function renderModalBody(job) {
     }</div>`;
 
   return chkHtml + catsHtml + rawHtml;
+}
+
+// Exclui só o registro do histórico; a pasta do cliente não é tocada.
+async function excluirJobAberto() {
+  if (!jobAberto) return;
+  const job = jobAberto;
+  if (!confirm(`Excluir o job "${job.num_job}" do histórico?\n\nA pasta do cliente não é alterada e você pode analisar de novo depois.`)) return;
+  const btn = document.getElementById('modalDel');
+  btn.disabled = true;
+  try {
+    const r = await fetch(`${API}/api/jobs/${job.id}`, { method: 'DELETE' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    jobAberto = null;
+    fecharModal();
+    await carregarJobs();
+  } catch (e) {
+    alert('Não foi possível excluir: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function fecharModal(e) {

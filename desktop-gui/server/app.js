@@ -54,6 +54,7 @@ function createApp({ baseDir, pyScriptPath, dbFile, frontendDir }) {
   app.get('/api/jobs', controller.listarJobs);
   app.get('/api/jobs/:id', controller.obterJob);
   app.post('/api/jobs/analisar', controller.analisarJob);
+  app.delete('/api/jobs/:id', controller.excluirJob);
 
   app.use(express.static(frontendDir));
   app.get('/', (req, res) => res.sendFile(path.join(frontendDir, 'index.html')));

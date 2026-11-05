@@ -73,6 +73,25 @@ exports.obterJob = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  DELETE /api/jobs/:id  — remove um job do histórico (só o registro no MySQL;
+//  nunca toca nas pastas analisadas nem nos JSONs de data/jobs/)
+// ─────────────────────────────────────────────────────────────────────────────
+exports.excluirJob = async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query('SELECT id, num_job FROM jobs_pro WHERE id = ?', [req.params.id]);
+    const job = rows[0];
+    if (!job) return res.status(404).json({ error: 'Job não encontrado' });
+    await pool.query('DELETE FROM jobs_pro WHERE id = ?', [job.id]);
+    logger.info(`[excluir] Job removido do histórico: job="${job.num_job}" id=${job.id}`);
+    res.json({ mensagem: 'Job excluído', id: job.id, num_job: job.num_job });
+  } catch (err) {
+    logger.erro('[excluirJob]', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/jobs/analisar  — dispara análise de um diretório
 //  Body: { pasta_raiz: "...", num_job: "..." }
 // ─────────────────────────────────────────────────────────────────────────────

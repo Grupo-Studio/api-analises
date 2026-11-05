@@ -92,4 +92,14 @@ function upsert(campos) {
   return atualizado;
 }
 
-module.exports = { init, listar, obterPorId, upsert };
+// Remove um job do histórico local. Devolve o job removido (ou null se não existe).
+function remover(id) {
+  const data = _ler();
+  const idx = data.jobs.findIndex(j => String(j.id) === String(id));
+  if (idx === -1) return null;
+  const [removido] = data.jobs.splice(idx, 1);
+  _escrever(data);
+  return removido;
+}
+
+module.exports = { init, listar, obterPorId, upsert, remover };

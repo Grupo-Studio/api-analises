@@ -65,6 +65,21 @@ function createController({ baseDir, pyScriptPath }) {
   }
 
   // ───────────────────────────────────────────────────────────────────────
+  //  DELETE /api/jobs/:id  (só o histórico local; nunca as pastas analisadas)
+  // ───────────────────────────────────────────────────────────────────────
+  async function excluirJob(req, res) {
+    try {
+      const job = jobStore.remover(req.params.id);
+      if (!job) return res.status(404).json({ error: 'Job não encontrado' });
+      logger.info(`[excluir] Job removido do histórico: job="${job.num_job}" id=${job.id}`);
+      res.json({ mensagem: 'Job excluído', id: job.id, num_job: job.num_job });
+    } catch (err) {
+      logger.erro('[excluirJob]', err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
   //  POST /api/jobs/analisar   Body: { pasta_raiz, num_job }
   // ───────────────────────────────────────────────────────────────────────
   async function analisarJob(req, res) {
@@ -199,7 +214,7 @@ function createController({ baseDir, pyScriptPath }) {
     });
   }
 
-  return { listarJobs, obterJob, analisarJob };
+  return { listarJobs, obterJob, analisarJob, excluirJob };
 }
 
 module.exports = { createController };

@@ -316,3 +316,10 @@ Esta seção é a referência funcional exibida também no painel em Regras da a
 - `uncaughtException`/`unhandledRejection` no Modo API são logadas e o processo encerra (PM2 reinicia), preservando o comportamento anterior.
 - Cards do dashboard (`frontend/index.html` e `desktop-gui/frontend/index.html`, sempre idênticos) são clicáveis e filtram a tabela: Jobs Analisados (todos), Com Alertas, Perfil Fastpass e Perfil Previdenciário (`perfil` começando com "É PERFIL"). O mesmo teste (`FILTROS` no script) conta o card e filtra a lista, e combina com a busca por texto. Clicar de novo no card ativo, ou no chip do filtro, volta a mostrar todos. Para criar outro filtro: nova entrada em `FILTROS` e um `.stat-cell[data-filtro]`.
 - Nenhuma regra de negócio da análise foi alterada nesta mudança.
+
+## Excluir job do histórico (2026-11-05)
+
+- Botão **🗑 Excluir** no cabeçalho do detalhe do job (`frontend/index.html` e `desktop-gui/frontend/index.html`, sempre idênticos), com `confirm()` antes. Chama `DELETE /api/jobs/:id`.
+- Modo API: `controllers/job_pro.controller.js` (`excluirJob`, `DELETE FROM jobs_pro WHERE id = ?`). Modo Desktop: `desktop-gui/server/controller.js` + `jobStore.remover(id)`. 404 se o job não existe.
+- Remove só o registro do histórico. Nunca toca nas pastas analisadas (somente leitura) nem nos JSONs sidecar de `data/jobs/`. Reanalisar a pasta recria o job (upsert por `num_job`).
+- Não há autenticação: quem acessa a API pode excluir. Testes em `tests/test_excluir_job.js`.

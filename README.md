@@ -150,6 +150,7 @@ instalar-vm.ps1 / start.ps1   firewall, tarefa agendada e start do dia a dia (Mo
 - `GET  /health` — status da API + banco
 - `GET  /api/jobs` — lista todos os jobs analisados
 - `GET  /api/jobs/:id` — detalhes de um job (inclui resultado bruto)
+- `DELETE /api/jobs/:id` — exclui um job do histórico (só o registro; pastas analisadas e `data/jobs/*.json` não são tocados)
 - `POST /api/jobs/analisar` — dispara uma análise
   — body: `{ "pasta_raiz": "...", "num_job": "..." }`
 - `GET  /api/logs?desde=<id>` — linhas de log novas (alimenta `/logs.html`)
