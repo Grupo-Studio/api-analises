@@ -15,7 +15,7 @@ import sys
 import json
 import unicodedata
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ── Saída sempre em UTF-8 ─────────────────────────────────────────────────────
 # No Windows, stdout/stderr redirecionados (pipe) usam a codepage ANSI (cp1252)
@@ -698,6 +698,7 @@ def _proc_data_abertura(raiz, elem, ctx):
     fonte = next((x for x in observacoes if x['cnae']), observacoes[0])
     ctx.update(cnae_principal=fonte['cnae'], cnae_arquivo=fonte['arquivo'], cnae_trecho=fonte['trecho'])
     if len(cnpjs)==1: ctx['cnpj_matriz'] = next(iter(cnpjs))
+    if len(datas)==1: ctx['data_abertura'] = next(iter(datas))   # usada p/ delimitar períodos como NÃO optante
     return _r(next(iter(datas)) if datas else 'Data não identificada', arquivos=arquivos,
               dados={"cnae_principal":fonte['cnae'], "cnpj_matriz":ctx.get('cnpj_matriz'), "evidencias":observacoes})
 
@@ -705,11 +706,15 @@ def _proc_data_abertura(raiz, elem, ctx):
 # ── Simples Nacional ─────────────────────────────────────────────────────────
 def _proc_simples(raiz, elem, ctx):
     situacoes, periodos, evidencias, arquivos = [], [], [], []
-    sem_historico = []
+    sem_historico, consultas = [], []
     hoje = datetime.now()
     for arq in candidatos(raiz, elem):
         texto = extrair_texto(arq)
         reconhecido = False
+        mc = re.search(r"Data\s+da\s+consulta\s*:\s*(\d{2}/\d{2}/\d{4})", texto, re.I)
+        if mc:
+            try: consultas.append(datetime.strptime(mc.group(1), '%d/%m/%Y'))
+            except ValueError: pass
         for label in ("Simples Nacional", "SIMEI"):
             m = re.search(r"Situa\S{1,3}o\s+no\s+" + label + r"\s*:\s*([^\n\r]+)", texto, re.I)
             if m:
@@ -744,20 +749,76 @@ def _proc_simples(raiz, elem, ctx):
             if inicio > fim or inicio > hoje:
                 continue
             anos = list(range(inicio.year, min(fim.year, hoje.year)+1))
-            periodos.append({"inicio": datas[0], "fim": datas[1] if len(datas)>1 else "atual", "anos": anos, "arquivo": arq, "trecho": linha})
+            detalhe = re.sub(r"\d{2}/\d{2}/\d{4}", "", linha).strip(" -–|:\t")
+            periodos.append({"inicio": datas[0], "fim": datas[1] if len(datas)>1 else "atual", "anos": anos, "detalhe": detalhe, "arquivo": arq, "trecho": linha})
             evidencias.append({"arquivo": arq, "trecho": linha})
             reconhecido = True
         if reconhecido:
             arquivos.append(arq)
     anos = sorted({ano for periodo in periodos for ano in periodo['anos']})
     linhas = list(dict.fromkeys(situacoes))
-    if sem_historico and not anos:
+    d = lambda s: datetime.strptime(s, '%d/%m/%Y')
+    f = lambda dt: dt.strftime('%d/%m/%Y')
+    dia = timedelta(days=1)
+    consulta = max(consultas) if consultas else datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    atual_optante = None
+    for sit in situacoes:
+        if sit.startswith("Simples Nacional:"):
+            v = sit.split(":", 1)[1].strip()
+            atual_optante = False if re.match(r"n[aã]o", v, re.I) else True if re.match(r"optante", v, re.I) else None
+            break
+
+    # Períodos como optante, com datas completas (cada linha da tabela "Períodos Anteriores").
+    unicos = list({(p['inicio'], p['fim']): p for p in periodos}.values())
+    unicos.sort(key=lambda p: (d(p['inicio']), p['fim'] == 'atual', d(p['fim']) if p['fim'] != 'atual' else consulta))
+    ivs = []   # intervalos (início, fim) já unidos quando contíguos/sobrepostos
+    for p in unicos:
+        ini_p, fim_p = d(p['inicio']), (consulta if p['fim'] == 'atual' else d(p['fim']))
+        if ivs and ini_p <= ivs[-1][1] + dia:
+            ivs[-1] = (ivs[-1][0], max(ivs[-1][1], fim_p))
+        else:
+            ivs.append((ini_p, fim_p))
+
+    if unicos:
+        linhas.append("Períodos como optante do Simples Nacional:")
+        for p in unicos:
+            linhas.append(f"  • {p['inicio']} a {p['fim']}" + (f" — {p['detalhe']}" if p.get('detalhe') else ""))
+    elif sem_historico:
         linhas.append('Sem períodos anteriores de opção pelo Simples Nacional, conforme consulta.')
-    linhas.append("Já foi optante. Anos documentados: " + ", ".join(map(str, anos)) if anos else
-                  "Nenhum ano anterior documentado como optante." if sem_historico else
-                  "Histórico de anos no Simples não identificado; não inferido da situação atual.")
+    else:
+        linhas.append("Histórico de períodos no Simples não identificado; não inferido da situação atual.")
+
+    # Períodos como NÃO optante = o que sobra da linha do tempo fora dos períodos optante.
+    # Só é calculado a partir de períodos reconhecidos (ou da declaração explícita "Não Existem").
+    abertura = None
+    try: abertura = d(ctx['data_abertura']) if ctx.get('data_abertura') else None
+    except ValueError: pass
+    nao_opt, nota_inicio = [], None
+    if ivs:
+        if abertura and abertura < ivs[0][0]:
+            nao_opt.append((abertura, ivs[0][0] - dia, ''))
+        elif not abertura:
+            nota_inicio = ivs[0][0]
+        for (_, f1), (i2, _) in zip(ivs, ivs[1:]):
+            if f1 + dia <= i2 - dia:
+                nao_opt.append((f1 + dia, i2 - dia, ''))
+        if atual_optante is False and ivs[-1][1] + dia <= consulta:
+            nao_opt.append((ivs[-1][1] + dia, consulta, ' (data da consulta)'))
+    elif sem_historico and atual_optante is False:
+        nao_opt.append((abertura, consulta, ' (data da consulta)'))   # nunca optante; início = abertura, se conhecida
+    if nao_opt or nota_inicio:
+        linhas.append("Períodos como NÃO optante:")
+        if nota_inicio:
+            linhas.append(f"  • antes de {f(nota_inicio)} (data de abertura não identificada para delimitar o início)")
+        for a_, b_, suf in nao_opt:
+            linhas.append(f"  • {f(a_) if a_ else 'desde sempre'} a {f(b_)}{suf}")
+
     return _r("\n".join(linhas) if arquivos else "", arquivos=arquivos,
-              dados={"anos_optante": anos, "periodos": periodos, "sem_periodos_anteriores": bool(sem_historico), "evidencias": evidencias})
+              dados={"anos_optante": anos, "periodos": unicos, "sem_periodos_anteriores": bool(sem_historico), "evidencias": evidencias,
+                     "periodos_optante": [{"inicio": f(a_), "fim": f(b_)} for a_, b_ in ivs],
+                     "periodos_nao_optante": [{"inicio": f(a_) if a_ else None, "fim": f(b_)} for a_, b_, _ in nao_opt],
+                     "atual_optante": atual_optante, "data_consulta": f(consulta),
+                     "data_abertura_considerada": f(abertura) if abertura else None})
 
 
 # ── QSA ──────────────────────────────────────────────────────────────────────

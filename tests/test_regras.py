@@ -212,4 +212,80 @@ class Robustez(unittest.TestCase):
         self.assertFalse(a._build_checklist([{'id':'contrato_existe','valor':'Sim — Contrato.pdf'}])[0]['alerta'])
 
 
+    # ── Simples Nacional: períodos com datas completas e períodos NÃO optante ─────────
+    CONSULTA_SIMPLES = (
+        'Data da consulta: 27/10/2026 15:33:03\nIdentificação do Contribuinte - CNPJ Matriz\n'
+        'Situação Atual\nSituação no Simples Nacional: NÃO optante pelo Simples Nacional\n'
+        'Situação no SIMEI: NÃO enquadrado no SIMEI\n'
+        'Períodos Anteriores\nOpções pelo Simples Nacional em Períodos Anteriores:\nData Inicial Data Final Detalhamento\n'
+        '01/01/2017 31/12/2017 Excluída por Ato Administrativo praticado pelo ente ARACAJU-SE\n'
+        '29/07/2015 31/12/2016 Excluída por Ato Administrativo praticado pelo ente ARACAJU-SE\n'
+        'Enquadramentos no SIMEI em Períodos Anteriores: Não Existem\n'
+        'Eventos Futuros (Simples Nacional)\nNão Existem\n')
+
+    def simples(self, texto, ctx=None):
+        with patch.object(a,'candidatos',return_value=['s.pdf']),patch.object(a,'extrair_texto',return_value=texto):
+            return a._proc_simples('',self.elem('simples_nacional'),ctx if ctx is not None else {})
+
+    def test_simples_mostra_datas_completas_e_detalhamento(self):
+        r = self.simples(self.CONSULTA_SIMPLES)
+        linhas = r['valor'].splitlines()
+        # ordem cronológica, com data inicial e final completas + detalhamento (as infos do print)
+        i = linhas.index('Períodos como optante do Simples Nacional:')
+        self.assertEqual(linhas[i+1], '  • 29/07/2015 a 31/12/2016 — Excluída por Ato Administrativo praticado pelo ente ARACAJU-SE')
+        self.assertEqual(linhas[i+2], '  • 01/01/2017 a 31/12/2017 — Excluída por Ato Administrativo praticado pelo ente ARACAJU-SE')
+        self.assertNotIn('Anos documentados', r['valor'])
+        self.assertEqual(r['dados']['anos_optante'], [2015, 2016, 2017])           # compatível com o que já existia
+        self.assertEqual(r['dados']['periodos_optante'], [{'inicio':'29/07/2015','fim':'31/12/2017'}])  # contíguos unidos
+
+    def test_simples_periodos_nao_optante_com_abertura(self):
+        r = self.simples(self.CONSULTA_SIMPLES, {'data_abertura': '10/02/2012'})
+        self.assertEqual(r['dados']['periodos_nao_optante'], [
+            {'inicio':'10/02/2012','fim':'28/07/2015'}, {'inicio':'01/01/2018','fim':'27/10/2026'}])
+        self.assertIn('  • 10/02/2012 a 28/07/2015', r['valor'])
+        self.assertIn('  • 01/01/2018 a 27/10/2026 (data da consulta)', r['valor'])
+
+    def test_simples_sem_abertura_nao_inventa_inicio(self):
+        r = self.simples(self.CONSULTA_SIMPLES)
+        self.assertEqual(r['dados']['periodos_nao_optante'], [{'inicio':'01/01/2018','fim':'27/10/2026'}])
+        self.assertIn('antes de 29/07/2015 (data de abertura não identificada', r['valor'])
+
+    def test_simples_lacuna_entre_periodos(self):
+        t = ('Data da consulta: 01/03/2026\nSituação no Simples Nacional: NÃO optante pelo Simples Nacional\n'
+             'Opções pelo Simples Nacional em Períodos Anteriores:\n'
+             '01/01/2021 30/06/2022 Excluída por Opção do Contribuinte\n'
+             '01/03/2018 31/12/2019 Excluída por Opção do Contribuinte\n'
+             'Eventos Futuros (Simples Nacional)\n')
+        r = self.simples(t, {'data_abertura': '05/05/2015'})
+        self.assertEqual(r['dados']['periodos_optante'], [{'inicio':'01/03/2018','fim':'31/12/2019'},{'inicio':'01/01/2021','fim':'30/06/2022'}])
+        self.assertEqual(r['dados']['periodos_nao_optante'], [
+            {'inicio':'05/05/2015','fim':'28/02/2018'}, {'inicio':'01/01/2020','fim':'31/12/2020'}, {'inicio':'01/07/2022','fim':'01/03/2026'}])
+
+    def test_simples_nunca_optante_e_historico_desconhecido(self):
+        nunca = ('Data da consulta: 01/03/2026\nSituação no Simples Nacional: NÃO optante pelo Simples Nacional\n'
+                 'Opções pelo Simples Nacional em Períodos Anteriores: Não Existem\n')
+        r = self.simples(nunca, {'data_abertura': '05/05/2015'})
+        self.assertEqual(r['dados']['periodos_nao_optante'], [{'inicio':'05/05/2015','fim':'01/03/2026'}])
+        # sem informação de histórico: nada é inferido (nem como optante, nem como não optante)
+        r = self.simples('Data da consulta: 01/03/2026\nSituação no Simples Nacional: NÃO optante pelo Simples Nacional\n')
+        self.assertEqual(r['dados']['periodos_optante'], []); self.assertEqual(r['dados']['periodos_nao_optante'], [])
+        self.assertIn('não identificado', r['valor'])
+
+    def test_simples_optante_atual_nao_gera_lacuna_final(self):
+        t = ('Data da consulta: 01/03/2026\nSituação no Simples Nacional: Optante pelo Simples Nacional\n'
+             'Optante desde 01/01/2020\n')
+        r = self.simples(t, {'data_abertura': '05/05/2015'})
+        self.assertEqual(r['dados']['periodos_nao_optante'], [{'inicio':'05/05/2015','fim':'31/12/2019'}])
+        self.assertTrue(r['dados']['atual_optante'])
+
+    def test_data_abertura_da_matriz_chega_ao_simples(self):
+        ctx = {}
+        card = 'NUMERO DE INSCRICAO\n11.111.111/0001-11 MATRIZ\nDATA DE ABERTURA 10/02/2012'
+        with patch.object(a,'candidatos',return_value=iter(['c.pdf'])),patch.object(a,'extrair_texto',return_value=card):
+            a._proc_data_abertura('',self.elem('data_abertura'),ctx)
+        self.assertEqual(ctx.get('data_abertura'), '10/02/2012')
+        r = self.simples(self.CONSULTA_SIMPLES, ctx)
+        self.assertEqual(r['dados']['data_abertura_considerada'], '10/02/2012')
+
+
 if __name__=='__main__': unittest.main()
