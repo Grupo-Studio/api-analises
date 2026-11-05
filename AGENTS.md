@@ -261,7 +261,7 @@ requirements.txt                    Os DOIS modos — deps Python do analisador
 Esta seção é a referência funcional exibida também no painel em Regras da análise.
 
 - Somente leitura dos documentos de origem. Nenhum arquivo de cliente pode ser criado, alterado, movido ou apagado. Resultados e logs são gravados exclusivamente na área da aplicação.
-- Contrato: existência de PDF em A - Contrato/1 - Contrato Studio; não valida assinatura. Procuração: em branco, definida pelo Project.
+- Contrato: existência de PDF em A - Contrato/1 - Contrato Studio **com "contrato" no nome do arquivo** (sem diferenciar maiúsculas/acentos; desde 2026-11-05 — acordo de confidencialidade e outros PDFs da pasta não contam); não valida assinatura. Procuração: em branco, definida pelo Project.
 - Honorários: cláusula 5.1; ignora gross up e 14,25%. Fallback próximo de honorários/remuneração exige conferência. Gross up: expressão gross up ou 14,25%. Passivo: menção textual, sem interpretação de negação.
 - Perfil Family: examina PDF/TXT/XLSX em B - Documentos/2 - Fiscal, a pasta do Regularize. Extrai nomes e CPF/CNPJ identificados na seção de sócios dos relatórios fiscais; mantém arquivo e trecho por vínculo. CPF/CNPJ avulso não comprova vínculo nem parentesco. Layout não reconhecido fica sem dado.
 - CNPJ: extrai data de abertura e CNAE principal do bloco da matriz; exige indicação explícita MATRIZ; nunca usa filial nem presume matriz pelo sufixo /0001. Se o cartão não for reconhecido, aceita a seção Dados Cadastrais da Matriz do relatório fiscal. CNAE pode ser extraído mesmo sem data.
@@ -323,3 +323,4 @@ Esta seção é a referência funcional exibida também no painel em Regras da a
 - Modo API: `controllers/job_pro.controller.js` (`excluirJob`, `DELETE FROM jobs_pro WHERE id = ?`). Modo Desktop: `desktop-gui/server/controller.js` + `jobStore.remover(id)`. 404 se o job não existe.
 - Remove só o registro do histórico. Nunca toca nas pastas analisadas (somente leitura) nem nos JSONs sidecar de `data/jobs/`. Reanalisar a pasta recria o job (upsert por `num_job`).
 - Não há autenticação: quem acessa a API pode excluir. Testes em `tests/test_excluir_job.js`.
+- Checklist do detalhe do job sem cores (2026-11-05): **COM CONTRATO** e **COM REGULARIZE** mostram ☑ + SIM em destaque quando verdadeiro e ☐ + NÃO em cinza quando falso; o cabeçalho é neutro.

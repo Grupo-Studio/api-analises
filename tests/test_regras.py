@@ -189,4 +189,27 @@ class Robustez(unittest.TestCase):
             self.assertEqual(r['status'],'sem_dado')
             self.assertFalse(r['valor'])
 
+    def test_contrato_exige_contrato_no_nome(self):
+        e = self.elem('contrato_existe')
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)/'A - Contrato'/'1 - Contrato Studio'; d.mkdir(parents=True)
+            (d/'Acordo de Confidencialidade.pdf').write_bytes(b'')
+            (d/'Procuracao.pdf').write_bytes(b'')
+            self.assertFalse(a._proc_existencia(tmp, e, {})['valor'])            # só NDA/outros: não conta
+            (d/'CONTRATO Studio.pdf').write_bytes(b'')
+            r = a._proc_existencia(tmp, e, {})
+            self.assertEqual(r['valor'], 'Sim — CONTRATO Studio.pdf')
+            self.assertEqual(len(r['arquivos']), 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)/'A - Contrato'/'1 - Contrato Studio'; d.mkdir(parents=True)
+            (d/'contrato assinado.pdf').write_bytes(b'')
+            self.assertTrue(a._proc_existencia(tmp, e, {})['valor'])             # minúsculas também
+            (d/'contrato assinado.pdf').rename(d/'Contrato.docx')
+            self.assertFalse(a._proc_existencia(tmp, e, {})['valor'])            # só PDF
+
+    def test_sem_contrato_gera_alerta_no_checklist(self):
+        self.assertTrue(a._build_checklist([{'id':'contrato_existe','valor':''}])[0]['alerta'])
+        self.assertFalse(a._build_checklist([{'id':'contrato_existe','valor':'Sim — Contrato.pdf'}])[0]['alerta'])
+
+
 if __name__=='__main__': unittest.main()

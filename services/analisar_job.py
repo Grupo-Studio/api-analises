@@ -61,8 +61,9 @@ ELEMENTOS: list[dict] = [
         "id": "contrato_existe",
         "categoria": "Contrato",
         "campo": "Contrato Assinado",
-        "descricao": "PDF de contrato em A - Contrato › 1 - Contrato Studio",
+        "descricao": "PDF com 'contrato' no nome em A - Contrato › 1 - Contrato Studio",
         "pasta": ["A - Contrato", "1 - Contrato Studio"],
+        "arquivo_contem": ["Contrato"],   # outros PDFs (ex.: acordo de confidencialidade) não contam
         "extensao": [".pdf"],
         "tipo": "existencia",
     },

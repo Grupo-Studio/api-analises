@@ -537,8 +537,7 @@
       align-items: center;
       gap: 8px;
     }
-    .checklist-header.ok  { background: var(--green-bg); color: var(--green) }
-    .checklist-header.err { background: var(--red-bg);   color: var(--red) }
+    .checklist-header { background: var(--bg); color: var(--fg) }
     .checklist-item {
       display: flex;
       align-items: center;
@@ -547,9 +546,8 @@
       border-top: 1px solid var(--border);
       font-size: 12px;
     }
-    .checklist-item.active { background: var(--red-bg); color: var(--red); font-weight: 600 }
-    .checklist-item.clear  { color: var(--fg-3) }
-    .checklist-item.ok     { background: var(--green-bg); color: var(--green); font-weight: 600 }
+    .checklist-item.sim { color: var(--fg); font-weight: 600 }   /* tem: ☑ em destaque */
+    .checklist-item.nao { color: var(--fg-3) }                    /* não tem: ☐ cinza */
     .checklist-item .chk-resp { margin-left: auto; font-size: 11px; text-transform: uppercase; letter-spacing: .04em }
 
     /* ── Results grid ──────────────────────────────────────────────────────── */
@@ -1111,10 +1109,7 @@ function renderModalBody(job) {
   const resultadoDe = id => (rawObj?.resultados || []).find(r => r.id === id);
 
   // Checklist
-  // Cada item responde Sim/Não à frase (☑ = Sim, ☐ = Não). Só duas cores:
-  // verde = está ok, vermelho = pendência.
-  //   COM CONTRATO:   Sim = verde, Não = vermelho
-  //   COM REGULARIZE: Não = verde, Sim = vermelho
+  // Cada item responde Sim/Não à frase, sem cores: ☑ (destaque) = tem, ☐ (cinza) = não tem.
   // A fonte de verdade é o próprio resultado (mesmo dado das linhas abaixo).
   // As colunas alerta_* só entram quando o job não tem resultado nenhum: jobs
   // antigos não têm essas colunas e `!undefined` daria "tem contrato" por engano.
@@ -1123,18 +1118,18 @@ function renderModalBody(job) {
   const temContrato   = infoDe('contrato_existe') ? textoDe('contrato_existe').trim() !== '' : !job.alerta_sem_contrato;
   const temRegularize = infoDe('regularize') ? /^sim/i.test(textoDe('regularize').trim()) : !!job.alerta_regularize;
   const itensChk = [
-    { marcado: temContrato,   desc: 'COM CONTRATO',   classe: temContrato ? 'ok' : 'active' },
-    { marcado: temRegularize, desc: 'COM REGULARIZE', classe: temRegularize ? 'active' : 'ok' },
+    { marcado: temContrato,   desc: 'COM CONTRATO' },
+    { marcado: temRegularize, desc: 'COM REGULARIZE' },
   ];
   const temAlerta = !temContrato || temRegularize;
 
   const chkHtml = `
     <div class="checklist">
-      <div class="checklist-header ${temAlerta ? 'err' : 'ok'}">
+      <div class="checklist-header">
         ${temAlerta ? '⚑ Há pendências no checklist' : '✔ Checklist sem pendências'}
       </div>
-      ${itensChk.map(({ marcado, desc, classe }) => `
-        <div class="checklist-item ${classe}">
+      ${itensChk.map(({ marcado, desc }) => `
+        <div class="checklist-item ${marcado ? 'sim' : 'nao'}">
           <span>${marcado ? '☑' : '☐'}</span>
           <span>${desc}</span>
           <span class="chk-resp">${marcado ? 'Sim' : 'Não'}</span>
