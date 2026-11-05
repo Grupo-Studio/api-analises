@@ -535,6 +535,7 @@
     }
     .checklist-item.active { background: var(--red-bg); color: var(--red); font-weight: 600 }
     .checklist-item.clear  { color: var(--fg-3) }
+    .checklist-item.ok     { background: var(--green-bg); color: var(--green); font-weight: 600 }
 
     /* ── Results grid ──────────────────────────────────────────────────────── */
     .cat-section + .cat-section { margin-top: 18px }
@@ -1086,21 +1087,25 @@ function renderModalBody(job) {
   const resultadoDe = id => (rawObj?.resultados || []).find(r => r.id === id);
 
   // Checklist
-  const alertas = [
-    [job.alerta_sem_contrato,   'SEM CONTRATO'],
-
-    [job.alerta_regularize,     'COM REGULARIZE'],
+  // Os dois itens são afirmativos: marcado (☑) = a frase é verdadeira.
+  // Contrato: marcado e verde = tem contrato; desmarcado e vermelho = pendência.
+  // Regularize: marcado e vermelho = está dentro do Regularize (alerta).
+  const temContrato   = !job.alerta_sem_contrato;
+  const temRegularize = !!job.alerta_regularize;
+  const itensChk = [
+    { marcado: temContrato,   desc: 'COM CONTRATO',   classe: temContrato ? 'ok' : 'active' },
+    { marcado: temRegularize, desc: 'COM REGULARIZE', classe: temRegularize ? 'active' : 'clear' },
   ];
-  const temAlerta = alertas.some(([a]) => a);
+  const temAlerta = !temContrato || temRegularize;
 
   const chkHtml = `
     <div class="checklist">
       <div class="checklist-header ${temAlerta ? 'err' : 'ok'}">
         ${temAlerta ? '⚑ Há pendências no checklist' : '✔ Checklist sem pendências'}
       </div>
-      ${alertas.map(([ativo, desc]) => `
-        <div class="checklist-item ${ativo ? 'active' : 'clear'}">
-          <span>${ativo ? '☒' : '☐'}</span>
+      ${itensChk.map(({ marcado, desc, classe }) => `
+        <div class="checklist-item ${classe}">
+          <span>${marcado ? '☑' : '☐'}</span>
           <span>${desc}</span>
         </div>`).join('')}
     </div>`;
